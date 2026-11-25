@@ -1,0 +1,190 @@
+server:
+  port: 8080
+
+spring:
+
+  application:
+    name: smart-library
+
+  # ==========================================
+  # POSTGRESQL DATABASE CONFIGURATION
+  # ==========================================
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smart_library}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:Anil108}
+    driver-class-name: org.postgresql.Driver
+
+  # ==========================================
+  # HIBERNATE CONFIGURATION
+  # ==========================================
+
+  jpa:
+    open-in-view: false
+
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+
+    properties:
+      hibernate:
+        format_sql: true
+
+  # ==========================================
+  # PAGINATION CONFIGURATION
+  # ==========================================
+
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+        default-page-size: 20
+
+  # ==========================================
+  # GMAIL SMTP CONFIGURATION
+  # ==========================================
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+
+    username: developer00108@gmail.com
+    password: "wzqxixbqnfsxsmbk"
+
+    default-encoding: UTF-8
+
+    properties:
+      mail:
+        smtp:
+          auth: true
+
+          starttls:
+            enable: true
+            required: true
+
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+# ==========================================
+# ACTUATOR CONFIGURATION
+# ==========================================
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# ==========================================
+# APPLICATION CONFIGURATION
+# ==========================================
+
+app:
+
+  timezone: ${APP_TIMEZONE:Asia/Kolkata}
+
+  frontend-url: "${FRONTEND_URL:http://localhost:5173}"
+
+  # ========================================
+  # JWT CONFIGURATION
+  # ========================================
+
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-change-me-please-0123456789abcdef}
+    expiration-minutes: ${JWT_EXPIRY_MINUTES:120}
+
+  # ========================================
+  # CORS CONFIGURATION
+  # ========================================
+
+  cors:
+    allowed-origins: "${CORS_ORIGINS:http://localhost:5173}"
+
+  # ========================================
+  # DEFAULT ADMIN ACCOUNT
+  # ========================================
+
+  seed:
+    enabled: true
+    admin-email: admin@library.com
+    admin-password: "Admin@12345"
+    reset-admin-password: false
+
+# ==========================================
+# LIBRARY BUSINESS RULES
+# ==========================================
+
+library:
+
+  # ========================================
+  # BOOK LOAN CONFIGURATION
+  # ========================================
+
+  loan-days: 14
+
+  max-active-loans: 3
+
+  max-renewals: 1
+
+  renewal-days: 7
+
+  block-on-overdue: true
+
+  default-membership-days: 30
+
+  # ========================================
+  # AUTOMATIC FINE MANAGEMENT
+  # ========================================
+
+  fine:
+
+    overdue-per-day: 5.00
+
+    damaged-charge: 200.00
+
+    lost-charge: 500.00
+
+    max-overdue-fine: 500.00
+
+    block-borrowing-on-pending-fine: true
+
+  # ========================================
+  # AUTOMATIC EMAIL REMINDERS
+  # ========================================
+
+  reminders:
+
+    enabled: true
+
+    sender: developer00108@gmail.com
+
+    zone: Asia/Kolkata
+
+    cron: "0 0 9 * * *"
+
+    due-before-days: 3
+
+    membership-before-days: 7
+
+  # ========================================
+  # MEMBERSHIP PAYMENT AND COUPON SYSTEM
+  # ========================================
+
+  payment:
+
+    demo-enabled: true
+
+    membership-price-paise: 29900
+
+    membership-days: 30
+
+    confirmation-email-enabled: true
+
+  # ========================================
+  # HELP AND SUPPORT TICKET SYSTEM
+  # ========================================
+
+  support:
+
+    email-enabled: true
