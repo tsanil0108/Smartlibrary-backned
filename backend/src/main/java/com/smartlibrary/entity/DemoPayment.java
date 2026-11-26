@@ -27,10 +27,18 @@ public class DemoPayment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(
+            name = "user_id",
+            nullable = false
+    )
     private Long userId;
 
-    @Column(name = "coupon_code", nullable = false)
+    // Coupon is now optional.
+
+    @Column(
+            name = "coupon_code",
+            length = 40
+    )
     private String couponCode;
 
     private long originalPaise;
@@ -44,6 +52,42 @@ public class DemoPayment {
     private Instant createdAt;
 
     // ==========================================
+    // REAL PAYMENT FIELDS
+    // ==========================================
+
+    @Column(unique = true)
+    private Long paymentOrderId;
+
+    @Column(
+            unique = true,
+            length = 100
+    )
+    private String razorpayOrderId;
+
+    @Column(
+            unique = true,
+            length = 100
+    )
+    private String razorpayPaymentId;
+
+    @Column(
+            name = "payment_method",
+            length = 30
+    )
+    private String storedPaymentMethod;
+
+    @Column(
+            name = "payment_status",
+            length = 30
+    )
+    private String storedStatus;
+
+    @Column(length = 3)
+    private String currency = "INR";
+
+    private Instant verifiedAt;
+
+    // ==========================================
     // TRANSACTION REFERENCE
     // ==========================================
 
@@ -53,6 +97,22 @@ public class DemoPayment {
         if (id == null) {
             return null;
         }
+
+        if (razorpayPaymentId != null
+                && !razorpayPaymentId.isBlank()) {
+
+            return razorpayPaymentId;
+        }
+
+        if ("COUPON".equals(storedPaymentMethod)) {
+
+            return String.format(
+                    "SLM-CPN-%08d",
+                    id
+            );
+        }
+
+        // Preserve old transaction references.
 
         return String.format(
                 "SLM-DEMO-%08d",
@@ -67,6 +127,14 @@ public class DemoPayment {
     @Transient
     public String getStatus() {
 
+        if (storedStatus != null
+                && !storedStatus.isBlank()) {
+
+            return storedStatus;
+        }
+
+        // Backward compatibility for old payments.
+
         return isFreeRedemption()
                 ? "SUCCESS"
                 : "UNVERIFIED";
@@ -79,11 +147,17 @@ public class DemoPayment {
     @Transient
     public String getPaymentMethod() {
 
+        if (storedPaymentMethod != null
+                && !storedPaymentMethod.isBlank()) {
+
+            return storedPaymentMethod;
+        }
+
         return "DEMO_COUPON";
     }
 
     // ==========================================
-    // FREE REDEMPTION CHECK
+    // FREE COUPON REDEMPTION
     // ==========================================
 
     @Transient
@@ -96,5 +170,43 @@ public class DemoPayment {
                 && paidPaise == 0
 
                 && membershipId != null;
+    }
+
+    // ==========================================
+    // VERIFIED ONLINE PAYMENT
+    // ==========================================
+
+    @Transient
+    public boolean isVerifiedOnlinePayment() {
+
+        return paidPaise > 0
+
+                && paidPaise ==
+                originalPaise - discountPaise
+
+                && razorpayPaymentId != null
+
+                && !razorpayPaymentId.isBlank()
+
+                && verifiedAt != null
+
+                && membershipId != null
+
+                && "SUCCESS".equals(storedStatus);
+    }
+
+    // ==========================================
+    // COMPLETED PAYMENT
+    // ==========================================
+
+    @Transient
+    public boolean isSuccessfulPayment() {
+
+        return "SUCCESS".equals(getStatus())
+
+                && (
+                isFreeRedemption()
+                        || isVerifiedOnlinePayment()
+        );
     }
 }

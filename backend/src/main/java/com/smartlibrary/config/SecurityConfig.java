@@ -96,12 +96,30 @@ public class SecurityConfig {
                         ).permitAll()
 
                         // ==================================
+                        // RAZORPAY WEBHOOK
+                        // ==================================
+
+                        /*
+                         * Razorpay sends server-to-server
+                         * payment notifications without JWT.
+                         *
+                         * Webhook authentication is handled
+                         * using HMAC SHA256 signature
+                         * verification in the controller.
+                         *
+                         * Only this POST endpoint is public.
+                         */
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/webhooks/razorpay"
+                        ).permitAll()
+
+                        // ==================================
                         // PUBLIC BOOK CATALOGUE
                         // ==================================
 
                         /*
-                         * Includes:
-                         *
                          * Book listing
                          * Book details
                          * Book search
@@ -180,10 +198,13 @@ public class SecurityConfig {
                         // ==================================
 
                         /*
-                         * Coupon validation
-                         * Demo checkout
+                         * Membership price calculation
+                         * Optional coupon validation
+                         * Razorpay order creation
+                         * Online payment verification
+                         * Free coupon redemption
+                         * Payment order details
                          * Payment history
-                         * Payment details
                          * PDF receipt download
                          */
 

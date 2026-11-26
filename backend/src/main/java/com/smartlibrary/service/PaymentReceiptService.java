@@ -32,7 +32,7 @@ public class PaymentReceiptService {
     private final MembershipRepository membershipRepository;
 
     // ==========================================
-    // MEMBER RECEIPT DETAILS
+    // MEMBER RECEIPT
     // ==========================================
 
     @Transactional(readOnly = true)
@@ -41,24 +41,20 @@ public class PaymentReceiptService {
             Long userId
     ) {
 
-        DemoPayment payment =
-                paymentRepository
-                        .findByIdAndUserId(
-                                paymentId,
-                                userId
+        DemoPayment payment = paymentRepository
+                .findByIdAndUserId(paymentId, userId)
+                .orElseThrow(() ->
+                        new NotFoundException(
+                                "Payment",
+                                paymentId
                         )
-                        .orElseThrow(
-                                () -> new NotFoundException(
-                                        "Payment",
-                                        paymentId
-                                )
-                        );
+                );
 
         return buildReceipt(payment);
     }
 
     // ==========================================
-    // ADMIN RECEIPT DETAILS
+    // ADMIN RECEIPT
     // ==========================================
 
     @Transactional(readOnly = true)
@@ -66,60 +62,96 @@ public class PaymentReceiptService {
             Long paymentId
     ) {
 
-        DemoPayment payment =
-                paymentRepository.findById(paymentId)
-                        .orElseThrow(
-                                () -> new NotFoundException(
-                                        "Payment",
-                                        paymentId
-                                )
-                        );
+        DemoPayment payment = paymentRepository
+                .findById(paymentId)
+                .orElseThrow(() ->
+                        new NotFoundException(
+                                "Payment",
+                                paymentId
+                        )
+                );
 
         return buildReceipt(payment);
     }
 
     // ==========================================
-    // BUILD RECEIPT RESPONSE
+    // VALIDATE PAYMENT
     // ==========================================
 
-    private ReceiptResponse buildReceipt(
-            DemoPayment payment
-    ) {
+    private void validatePayment(DemoPayment payment) {
 
-        if (!payment.isFreeRedemption()) {
+        if (!payment.isSuccessfulPayment()) {
 
             throw new BusinessRuleException(
 
                     "RECEIPT_UNAVAILABLE",
 
                     "Receipt is available only for "
-                            + "successful coupon redemptions"
+                            + "successful verified payments."
             );
         }
 
-        User user =
-                userRepository.findById(
+        if (payment.getOriginalPaise() <= 0
+
+                || payment.getDiscountPaise() < 0
+
+                || payment.getPaidPaise() < 0
+
+                || payment.getDiscountPaise()
+                > payment.getOriginalPaise()
+
+                || payment.getPaidPaise()
+                != payment.getOriginalPaise()
+                - payment.getDiscountPaise()) {
+
+            throw new BusinessRuleException(
+
+                    "INVALID_PAYMENT_AMOUNT",
+
+                    "Payment amount details are invalid."
+            );
+        }
+
+        if (payment.getMembershipId() == null) {
+
+            throw new BusinessRuleException(
+
+                    "MEMBERSHIP_NOT_FOUND",
+
+                    "Payment membership details are missing."
+            );
+        }
+    }
+
+    // ==========================================
+    // BUILD RECEIPT
+    // ==========================================
+
+    private ReceiptResponse buildReceipt(
+            DemoPayment payment
+    ) {
+
+        validatePayment(payment);
+
+        User user = userRepository
+                .findById(payment.getUserId())
+                .orElseThrow(() ->
+                        new NotFoundException(
+                                "User",
                                 payment.getUserId()
                         )
-                        .orElseThrow(
-                                () -> new NotFoundException(
-                                        "User",
-                                        payment.getUserId()
-                                )
-                        );
+                );
 
-        Membership membership =
-                membershipRepository.findById(
+        Membership membership = membershipRepository
+                .findById(payment.getMembershipId())
+                .orElseThrow(() ->
+                        new NotFoundException(
+                                "Membership",
                                 payment.getMembershipId()
                         )
-                        .orElseThrow(
-                                () -> new NotFoundException(
-                                        "Membership",
-                                        payment.getMembershipId()
-                                )
-                        );
+                );
 
-        // Validate membership ownership
+        // Validate membership ownership.
 
         if (!Objects.equals(
 
@@ -133,19 +165,18 @@ public class PaymentReceiptService {
 
                     "INVALID_PAYMENT_MEMBERSHIP",
 
-                    "Payment membership details are invalid"
+                    "Payment membership details are invalid."
             );
         }
 
-        String receiptNumber =
-                String.format(
+        String receiptNumber = String.format(
 
-                        Locale.ROOT,
+                Locale.ROOT,
 
-                        "SLM-RCP-%08d",
+                "SLM-RCP-%08d",
 
-                        payment.getId()
-                );
+                payment.getId()
+        );
 
         return new ReceiptResponse(
 

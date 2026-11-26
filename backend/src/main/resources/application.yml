@@ -188,3 +188,30 @@ library:
   support:
 
     email-enabled: true
+
+    library:
+      payment:
+
+        demo-enabled: ${DEMO_PAYMENT_ENABLED:false}
+
+        online-enabled: ${ONLINE_PAYMENT_ENABLED:false}
+
+        coupon-enabled: ${COUPON_ENABLED:true}
+
+        membership-price-paise: ${MEMBERSHIP_PRICE_PAISE:29900}
+
+        membership-days: ${MEMBERSHIP_DAYS:30}
+
+        membership-plan-name: "Premium Monthly"
+
+        currency: INR
+
+        confirmation-email-enabled: true
+
+        order-expiry-minutes: 15
+
+        razorpay-key-id: ${RAZORPAY_KEY_ID:}
+
+        razorpay-key-secret: ${RAZORPAY_KEY_SECRET:}
+
+        razorpay-webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}

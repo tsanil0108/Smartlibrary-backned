@@ -16,21 +16,19 @@ public interface DemoPaymentRepository
             Long userId
     );
 
-    // Check duplicate coupon usage
+    // Duplicate coupon protection
 
     boolean existsByUserIdAndCouponCode(
             Long userId,
             String couponCode
     );
 
-    // Find existing payment for duplicate requests
-
     Optional<DemoPayment> findByUserIdAndCouponCode(
             Long userId,
             String couponCode
     );
 
-    // Find payment belonging to specific member
+    // Member receipt access
 
     Optional<DemoPayment> findByIdAndUserId(
             Long id,
@@ -41,7 +39,37 @@ public interface DemoPaymentRepository
 
     List<DemoPayment> findAllByOrderByIdDesc();
 
-    // Count member payments
+    // Member analytics
 
-    long countByUserId(Long userId);
+    long countByUserId(
+            Long userId
+    );
+
+    // ==========================================
+    // REAL PAYMENT METHODS
+    // ==========================================
+
+    Optional<DemoPayment> findByPaymentOrderId(
+            Long paymentOrderId
+    );
+
+    Optional<DemoPayment> findByRazorpayOrderId(
+            String razorpayOrderId
+    );
+
+    Optional<DemoPayment> findByRazorpayPaymentId(
+            String razorpayPaymentId
+    );
+
+    boolean existsByPaymentOrderId(
+            Long paymentOrderId
+    );
+
+    boolean existsByRazorpayPaymentId(
+            String razorpayPaymentId
+    );
+
+    List<DemoPayment> findByStoredStatusOrderByIdDesc(
+            String storedStatus
+    );
 }
