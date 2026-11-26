@@ -8,7 +8,6 @@ import com.smartlibrary.security.RestAuthEntryPoint;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
 import org.springframework.http.HttpMethod;
 
 import org.springframework.security.authentication.AuthenticationManager;
@@ -43,91 +42,46 @@ public class SecurityConfig {
 
         http
 
-                // ==========================================
-                // CSRF CONFIGURATION
-                // ==========================================
-
+                // CSRF
                 .csrf(csrf -> csrf.disable())
 
-                // ==========================================
-                // CORS CONFIGURATION
-                // ==========================================
-
+                // CORS
                 .cors(c -> c.configurationSource(cors))
 
-                // ==========================================
-                // STATELESS JWT AUTHENTICATION
-                // ==========================================
-
+                // STATELESS JWT
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS
                         )
                 )
 
-                // ==========================================
-                // SECURITY EXCEPTION HANDLING
-                // ==========================================
-
+                // EXCEPTION HANDLING
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(deniedHandler)
                 )
 
-                // ==========================================
                 // API AUTHORIZATION
-                // ==========================================
-
                 .authorizeHttpRequests(auth -> auth
 
-                        // CORS preflight requests
-
+                        // CORS PREFLIGHT
                         .requestMatchers(
                                 HttpMethod.OPTIONS,
                                 "/**"
                         ).permitAll()
 
-                        // ==================================
                         // PUBLIC AUTHENTICATION
-                        // ==================================
-
                         .requestMatchers(
                                 "/api/v1/auth/**"
                         ).permitAll()
 
-                        // ==================================
                         // RAZORPAY WEBHOOK
-                        // ==================================
-
-                        /*
-                         * Razorpay sends server-to-server
-                         * payment notifications without JWT.
-                         *
-                         * Webhook authentication is handled
-                         * using HMAC SHA256 signature
-                         * verification in the controller.
-                         *
-                         * Only this POST endpoint is public.
-                         */
-
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/v1/webhooks/razorpay"
                         ).permitAll()
 
-                        // ==================================
                         // PUBLIC BOOK CATALOGUE
-                        // ==================================
-
-                        /*
-                         * Book listing
-                         * Book details
-                         * Book search
-                         * Categories
-                         * Book reviews
-                         * Book rating summary
-                         */
-
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/books",
@@ -136,10 +90,7 @@ public class SecurityConfig {
                                 "/api/v1/categories/**"
                         ).permitAll()
 
-                        // ==================================
                         // SWAGGER AND HEALTH CHECK
-                        // ==================================
-
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -147,82 +98,27 @@ public class SecurityConfig {
                                 "/actuator/health"
                         ).permitAll()
 
-                        // ==================================
                         // ADMIN APIs
-                        // ==================================
-
-                        /*
-                         * Admin dashboard
-                         * Book management
-                         * Category management
-                         * Member management
-                         * Membership management
-                         * Reservation management
-                         * Library card verification
-                         * Fine management
-                         * Coupon management
-                         * Payment management
-                         * PDF payment receipts
-                         * Review moderation
-                         * Reports and analytics
-                         */
-
                         .requestMatchers(
                                 "/api/v1/admin/**",
                                 "/api/v1/reports/**"
                         ).hasRole("ADMIN")
 
-                        // ==================================
                         // MEMBER APIs
-                        // ==================================
-
-                        /*
-                         * Member profile
-                         * Change password
-                         * Wishlist
-                         * Book reservations
-                         * Digital library card
-                         * Fine history
-                         * Book reviews
-                         * Reading analytics
-                         * Member dashboard
-                         * Help and support
-                         */
-
                         .requestMatchers(
                                 "/api/v1/member/**"
                         ).hasRole("MEMBER")
 
-                        // ==================================
-                        // MEMBERSHIP PAYMENT APIs
-                        // ==================================
-
-                        /*
-                         * Membership price calculation
-                         * Optional coupon validation
-                         * Razorpay order creation
-                         * Online payment verification
-                         * Free coupon redemption
-                         * Payment order details
-                         * Payment history
-                         * PDF receipt download
-                         */
-
+                        // PAYMENT APIs
                         .requestMatchers(
                                 "/api/v1/payments/**"
                         ).hasRole("MEMBER")
 
-                        // ==================================
-                        // REMAINING AUTHENTICATED APIs
-                        // ==================================
-
+                        // REMAINING APIs
                         .anyRequest().authenticated()
                 )
 
-                // ==========================================
-                // JWT AUTHENTICATION FILTER
-                // ==========================================
-
+                // JWT FILTER
                 .addFilterBefore(
                         new JwtAuthFilter(
                                 jwtService,
@@ -234,19 +130,14 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // ==========================================
     // PASSWORD ENCODER
-    // ==========================================
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-
         return new BCryptPasswordEncoder(12);
     }
 
-    // ==========================================
     // AUTHENTICATION MANAGER
-    // ==========================================
 
     @Bean
     public AuthenticationManager authenticationManager(

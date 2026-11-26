@@ -3,10 +3,13 @@ package com.smartlibrary.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.smartlibrary.entity.PaymentOrderStatus;
+
 import com.smartlibrary.repository.PaymentOrderRepository;
 
 import com.smartlibrary.service.PaymentCompletionService;
 import com.smartlibrary.service.RazorpayService;
+import com.smartlibrary.service.RefundReconciliationService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +31,8 @@ public class PaymentWebhookController {
 
     private final PaymentCompletionService completionService;
 
+    private final RefundReconciliationService refundReconciliationService;
+
     private final PaymentOrderRepository orders;
 
     private final ObjectMapper objectMapper;
@@ -45,144 +50,312 @@ public class PaymentWebhookController {
 
     ) {
 
-        // Verify raw request body before JSON parsing.
+        // Verify signature using original raw request body.
 
         if (!razorpayService.verifyWebhookSignature(
+
                 rawBody,
+
                 signature
+
         )) {
 
-            return ResponseEntity.status(401).body(
+            return response(
 
-                    Map.of(
+                    401,
 
-                            "success", false,
+                    false,
 
-                            "message", "Invalid webhook signature."
-                    )
+                    "Invalid webhook signature."
             );
         }
 
         try {
 
-            JsonNode root =
-                    objectMapper.readTree(rawBody);
+            JsonNode root = objectMapper.readTree(rawBody);
 
-            String event = root
-                    .path("event")
-                    .asText("");
+            if (root == null || !root.isObject()) {
 
-            if ("payment.captured".equals(event)) {
-
-                JsonNode payment = root
-
-                        .path("payload")
-
-                        .path("payment")
-
-                        .path("entity");
-
-                String paymentId = payment
-
-                        .path("id")
-
-                        .asText("");
-
-                String orderId = payment
-
-                        .path("order_id")
-
-                        .asText("");
-
-                if (paymentId.isBlank()
-
-                        || orderId.isBlank()) {
-
-                    return ResponseEntity.badRequest()
-                            .body(Map.of(
-
-                                    "success", false,
-
-                                    "message", "Invalid payment event."
-                            ));
-                }
-
-                // Ignore unrelated orders.
-
-                if (orders.findByRazorpayOrderId(
-                        orderId
-                ).isEmpty()) {
-
-                    log.warn(
-                            "Webhook received for unknown order: {}",
-                            orderId
-                    );
-
-                    // Return retryable response because
-                    // the order transaction may not be committed.
-
-                    return ResponseEntity.status(503)
-                            .body(Map.of(
-
-                                    "success", false,
-
-                                    "message", "Order not available."
-                            ));
-                }
-
-                completionService.completeFromWebhook(
-
-                        orderId,
-
-                        paymentId
-                );
-
-                log.info(
-                        "Payment webhook processed: {}",
-                        paymentId
+                return response(
+                        400,
+                        false,
+                        "Invalid webhook payload."
                 );
             }
 
-            // Other event types do not activate membership.
+            String event = root
 
-            return ResponseEntity.ok(
+                    .path("event")
 
-                    Map.of(
+                    .asText("");
 
-                            "success", true,
+            return switch (event) {
 
-                            "message", "Webhook received."
-                    )
-            );
+                case "payment.captured" ->
+
+                        handlePaymentCaptured(root);
+
+                case "refund.created",
+                     "refund.processed",
+                     "refund.failed" ->
+
+                        handleRefundEvent(root);
+
+                default -> response(
+
+                        200,
+
+                        true,
+
+                        "Webhook received."
+                );
+            };
 
         } catch (IOException ex) {
 
-            return ResponseEntity.badRequest()
-                    .body(Map.of(
+            return response(
 
-                            "success", false,
+                    400,
 
-                            "message", "Invalid webhook payload."
-                    ));
+                    false,
+
+                    "Invalid webhook payload."
+            );
 
         } catch (RuntimeException ex) {
 
             log.error(
 
-                    "Payment webhook processing failed: {}",
+                    "Razorpay webhook processing failed: {}",
 
                     ex.getClass().getSimpleName()
             );
 
-            // Non-2xx response allows gateway retry.
+            return response(
 
-            return ResponseEntity.status(500)
-                    .body(Map.of(
+                    500,
 
-                            "success", false,
+                    false,
 
-                            "message", "Webhook processing failed."
-                    ));
+                    "Webhook processing failed."
+            );
         }
+    }
+
+    // ==========================================
+    // PAYMENT CAPTURED
+    // ==========================================
+
+    private ResponseEntity<Map<String, Object>>
+    handlePaymentCaptured(JsonNode root) {
+
+        JsonNode payment = root
+
+                .path("payload")
+
+                .path("payment")
+
+                .path("entity");
+
+        String paymentId = payment
+
+                .path("id")
+
+                .asText("");
+
+        String orderId = payment
+
+                .path("order_id")
+
+                .asText("");
+
+        if (paymentId.isBlank()
+
+                || orderId.isBlank()) {
+
+            return response(
+
+                    400,
+
+                    false,
+
+                    "Invalid payment event."
+            );
+        }
+
+        var order = orders
+
+                .findByRazorpayOrderId(orderId)
+
+                .orElse(null);
+
+        if (order == null) {
+
+            log.warn(
+
+                    "Webhook received for unknown order: {}",
+
+                    orderId
+            );
+
+            return response(
+
+                    503,
+
+                    false,
+
+                    "Order not available."
+            );
+        }
+
+        // Do not reactivate membership after a refund
+        // when an older capture webhook is delivered again.
+
+        if (order.getStatus() == PaymentOrderStatus.REFUND_PENDING
+
+                || order.getStatus() == PaymentOrderStatus.REFUNDED) {
+
+            if (!paymentId.equals(order.getRazorpayPaymentId())) {
+
+                log.error(
+                        "Unexpected captured payment on refunded order: {}",
+                        orderId
+                );
+
+                return response(
+                        409,
+                        false,
+                        "Payment requires manual investigation."
+                );
+            }
+
+            return response(
+
+                    200,
+
+                    true,
+
+                    "Payment was already processed."
+            );
+        }
+
+        completionService.completeFromWebhook(
+
+                orderId,
+
+                paymentId
+        );
+
+        log.info(
+
+                "Payment webhook processed: {}",
+
+                paymentId
+        );
+
+        return response(
+
+                200,
+
+                true,
+
+                "Payment webhook processed."
+        );
+    }
+
+    // ==========================================
+    // REFUND EVENTS
+    // ==========================================
+
+    private ResponseEntity<Map<String, Object>>
+    handleRefundEvent(JsonNode root) {
+
+        JsonNode refund = root
+
+                .path("payload")
+
+                .path("refund")
+
+                .path("entity");
+
+        String refundId = refund
+
+                .path("id")
+
+                .asText("");
+
+        String paymentId = refund
+
+                .path("payment_id")
+
+                .asText("");
+
+        if (refundId.isBlank()
+
+                || paymentId.isBlank()) {
+
+            return response(
+
+                    400,
+
+                    false,
+
+                    "Invalid refund event."
+            );
+        }
+
+        boolean matched = refundReconciliationService
+
+                .reconcileFromWebhook(
+
+                        refundId,
+
+                        paymentId
+                );
+
+        if (!matched) {
+
+            return response(
+
+                    503,
+
+                    false,
+
+                    "Refund requires reconciliation."
+            );
+        }
+
+        return response(
+
+                200,
+
+                true,
+
+                "Refund webhook processed."
+        );
+    }
+
+    // ==========================================
+    // RESPONSE HELPER
+    // ==========================================
+
+    private ResponseEntity<Map<String, Object>> response(
+
+            int status,
+
+            boolean success,
+
+            String message
+
+    ) {
+
+        return ResponseEntity.status(status)
+
+                .body(Map.of(
+
+                        "success", success,
+
+                        "message", message
+                ));
     }
 }
